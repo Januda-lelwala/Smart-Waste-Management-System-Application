@@ -1,0 +1,96 @@
+# Kong declarative config (DB-less mode)
+# Load with: KONG_DATABASE=off KONG_DECLARATIVE_CONFIG=/kong/kong.yml
+# Or sync with: deck gateway sync kong/kong.yml
+
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: garabadge-backend
+    url: http://backend:3001
+    connect_timeout: 5000
+    read_timeout: 10000
+    write_timeout: 10000
+
+    routes:
+      # Bins
+      - name: bins-list
+        paths: ["/v1/bins"]
+        methods: ["GET"]
+        strip_path: false
+
+      - name: bins-detail
+        paths: ["/v1/bins/(?<id>[^/]+)$"]
+        methods: ["GET"]
+        strip_path: false
+
+      # Alerts
+      - name: alerts-list
+        paths: ["/v1/alerts"]
+        methods: ["GET"]
+        strip_path: false
+
+      - name: alerts-read-all
+        paths: ["/v1/alerts/read-all"]
+        methods: ["PATCH"]
+        strip_path: false
+
+      - name: alerts-read-one
+        paths: ["/v1/alerts/(?<id>[^/]+)/read$"]
+        methods: ["PATCH"]
+        strip_path: false
+
+      # Pickup routes
+      - name: pickup-routes-list
+        paths: ["/v1/pickup-routes"]
+        methods: ["GET"]
+        strip_path: false
+
+      - name: pickup-routes-detail
+        paths: ["/v1/pickup-routes/(?<id>[^/]+)$"]
+        methods: ["GET"]
+        strip_path: false
+
+      # Analytics
+      - name: analytics
+        paths: ["/v1/analytics"]
+        methods: ["GET"]
+        strip_path: false
+
+      # Zones
+      - name: zones-list
+        paths: ["/v1/zones"]
+        methods: ["GET"]
+        strip_path: false
+
+      - name: zones-detail
+        paths: ["/v1/zones/(?<id>[^/]+)$"]
+        methods: ["GET"]
+        strip_path: false
+
+      # Health
+      - name: health
+        paths: ["/health"]
+        methods: ["GET"]
+        strip_path: false
+
+    # Plugins applied to every route of this service
+    plugins:
+      - name: cors
+        config:
+          origins: ["*"]
+          methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]
+          headers: ["Accept", "Content-Type", "Authorization", "X-Api-Key"]
+          max_age: 3600
+
+      - name: rate-limiting
+        config:
+          minute: 120
+          policy: local
+          error_message: "Too many requests — slow down"
+
+      # Uncomment to require an API key on all routes:
+      # - name: key-auth
+      #   config:
+      #     key_names: ["X-Api-Key"]
+      #     hide_credentials: true
