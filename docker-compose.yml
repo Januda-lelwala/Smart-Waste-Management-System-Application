@@ -1,18 +1,17 @@
 version: "3.9"
 
 services:
-  # ── Backend service ────────────────────────────────────────────────────────
-  backend:
+  # ── Next.js app (UI + API routes) ─────────────────────────────────────────
+  nextjs:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
-    container_name: garabadge-backend
+    container_name: garabadge-nextjs
     restart: unless-stopped
     environment:
-      PORT: 3001
-      CORS_ORIGIN: "*"
-    ports:
-      - "3001:3001"
+      NODE_ENV: production
+    expose:
+      - "3000"
     networks:
       - garabadge
 
@@ -30,12 +29,12 @@ services:
       KONG_ADMIN_ERROR_LOG: /dev/stderr
       KONG_ADMIN_LISTEN: "0.0.0.0:8001"
     ports:
-      - "8000:8000"   # proxy (frontend calls this)
-      - "8001:8001"   # admin API
+      - "8000:8000"   # public proxy
+      - "8001:8001"   # admin API (restrict in production)
     volumes:
       - ./kong/kong.yml:/kong/kong.yml:ro
     depends_on:
-      - backend
+      - nextjs
     networks:
       - garabadge
     healthcheck:

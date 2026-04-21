@@ -20,7 +20,13 @@ const VIEW_TITLES: Record<ViewId, string> = {
   analytics: 'Analytics',
 };
 
-const POLL_INTERVAL = 8000; // ms — how often to re-fetch bins from API
+const POLL_MS = 8000;
+
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`/api/v1${path}`, init);
+  if (!res.ok) throw new Error(`${res.status} ${path}`);
+  return res.json();
+}
 
 export default function Dashboard() {
   const [view, setView]           = useState<ViewId>('map');
@@ -31,54 +37,47 @@ export default function Dashboard() {
   const [zones, setZones]         = useState<Zone[]>(ZONES);
   const [apiReady, setApiReady]   = useState(false);
 
-  // Initial load from API (falls back to mock data on error)
+  // Bootstrap from API on mount
   useEffect(() => {
-    async function bootstrap() {
+    async function load() {
       try {
-        const [binsRes, alertsRes, routesRes, analyticsRes, zonesRes] = await Promise.all([
-          fetch('/api/bins'),
-          fetch('/api/alerts'),
-          fetch('/api/pickup-routes'),
-          fetch('/api/analytics'),
-          fetch('/api/zones'),
+        const [b, a, r, an, z] = await Promise.all([
+          apiFetch<Bin[]>('/bins'),
+          apiFetch<Alert[]>('/alerts'),
+          apiFetch<Route[]>('/pickup-routes'),
+          apiFetch<AnalyticsData>('/analytics'),
+          apiFetch<Zone[]>('/zones'),
         ]);
-
-        if (binsRes.ok)      setBins(await binsRes.json());
-        if (alertsRes.ok)    setAlerts(await alertsRes.json());
-        if (routesRes.ok)    { const routes = await routesRes.json(); if (routes[0]) setRoute(routes[0]); }
-        if (analyticsRes.ok) setAnalytics(await analyticsRes.json());
-        if (zonesRes.ok)     setZones(await zonesRes.json());
+        setBins(b);
+        setAlerts(a);
+        if (r[0]) setRoute(r[0]);
+        setAnalytics(an);
+        setZones(z);
         setApiReady(true);
       } catch {
-        // API not reachable — keep mock data, no crash
-        console.warn('API unavailable, using mock data');
+        console.warn('API unavailable — running on mock data');
       }
     }
-    bootstrap();
+    load();
   }, []);
 
-  // Poll bins every POLL_INTERVAL when API is live
+  // Poll bins when API is live
   useEffect(() => {
     if (!apiReady) return;
     const id = setInterval(async () => {
-      try {
-        const res = await fetch('/api/bins');
-        if (res.ok) setBins(await res.json());
-      } catch { /* swallow — keep last known state */ }
-    }, POLL_INTERVAL);
+      try { setBins(await apiFetch<Bin[]>('/bins')); } catch { /* keep last state */ }
+    }, POLL_MS);
     return () => clearInterval(id);
   }, [apiReady]);
 
-  // Local fill simulation when API is not yet live (dev without backend)
+  // Local simulation when API is offline
   useEffect(() => {
     if (apiReady) return;
     const id = setInterval(() => {
       setBins(prev => prev.map(b => {
         if (b.offline) return b;
-        const delta = (Math.random() - 0.35) * 3;
-        const fill = Math.max(0, Math.min(100, Math.round(b.fill + delta)));
-        const status = fill >= 85 ? 'critical' : fill >= 60 ? 'warning' : 'ok';
-        return { ...b, fill, status, lastPing: Date.now() };
+        const fill = Math.max(0, Math.min(100, Math.round(b.fill + (Math.random() - 0.35) * 3)));
+        return { ...b, fill, status: fill >= 85 ? 'critical' : fill >= 60 ? 'warning' : 'ok', lastPing: Date.now() };
       }));
     }, 4000);
     return () => clearInterval(id);
@@ -86,12 +85,12 @@ export default function Dashboard() {
 
   const markRead = useCallback(async (id: string) => {
     setAlerts(prev => prev.map(a => a.id === id ? { ...a, read: true } : a));
-    try { await fetch(`/api/alerts/${id}`, { method: 'PATCH' }); } catch { /* optimistic */ }
+    try { await apiFetch(`/alerts/${id}`, { method: 'PATCH' }); } catch { /* optimistic */ }
   }, []);
 
   const markAllRead = useCallback(async () => {
     setAlerts(prev => prev.map(a => ({ ...a, read: true })));
-    try { await fetch('/api/alerts', { method: 'PATCH' }); } catch { /* optimistic */ }
+    try { await apiFetch('/alerts', { method: 'PATCH' }); } catch { /* optimistic */ }
   }, []);
 
   return (
@@ -102,29 +101,21 @@ export default function Dashboard() {
         <Sidebar active={view} onNav={setView} alerts={alerts}/>
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {/* Breadcrumb bar */}
           <div style={{
-            height: 40,
-            display: 'flex', alignItems: 'center', padding: '0 20px',
-            borderBottom: '1px solid var(--border)',
-            background: 'var(--bg-surface)',
-            flexShrink: 0,
+            height: 40, display: 'flex', alignItems: 'center', padding: '0 20px',
+            borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)', flexShrink: 0,
           }}>
             <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Dashboard</span>
             <span style={{ color: 'var(--border-hi)', margin: '0 8px' }}>›</span>
-            <span style={{ color: 'var(--text-primary)', fontSize: 11, fontWeight: 600 }}>
-              {VIEW_TITLES[view]}
-            </span>
-            <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ color: 'var(--text-primary)', fontSize: 11, fontWeight: 600 }}>{VIEW_TITLES[view]}</span>
+            <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
               {view === 'map' && <><PulseDot color="var(--ok)"/><span style={{ color: 'var(--text-muted)', fontSize: 10 }}>Live feed</span></>}
-              {apiReady
-                ? <span style={{ color: 'var(--ok)', fontSize: 10, marginLeft: 8 }}>● API</span>
-                : <span style={{ color: 'var(--text-muted)', fontSize: 10, marginLeft: 8 }}>◌ Mock data</span>
-              }
+              <span style={{ fontSize: 10, color: apiReady ? 'var(--ok)' : 'var(--text-muted)' }}>
+                {apiReady ? '● API' : '◌ Mock data'}
+              </span>
             </span>
           </div>
 
-          {/* Content area */}
           <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
             {view === 'map'       && <div style={{ height: '100%' }}><MapView bins={bins}/></div>}
             {view === 'bins'      && <BinsView bins={bins}/>}

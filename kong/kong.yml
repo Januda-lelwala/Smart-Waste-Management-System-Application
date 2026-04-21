@@ -1,32 +1,20 @@
 # Kong declarative config (DB-less mode)
-# Load with: KONG_DATABASE=off KONG_DECLARATIVE_CONFIG=/kong/kong.yml
-# Or sync with: deck gateway sync kong/kong.yml
+# Kong sits in front of Next.js and handles auth, rate-limiting, CORS.
+# Run: docker-compose up
 
 _format_version: "3.0"
 _transform: true
 
 services:
-  - name: garabadge-backend
-    url: http://backend:3001
+  - name: garabadge-nextjs
+    url: http://nextjs:3000
     connect_timeout: 5000
     read_timeout: 10000
     write_timeout: 10000
 
     routes:
-      # Bins
-      - name: bins-list
+      - name: bins
         paths: ["/v1/bins"]
-        methods: ["GET"]
-        strip_path: false
-
-      - name: bins-detail
-        paths: ["/v1/bins/(?<id>[^/]+)$"]
-        methods: ["GET"]
-        strip_path: false
-
-      # Alerts
-      - name: alerts-list
-        paths: ["/v1/alerts"]
         methods: ["GET"]
         strip_path: false
 
@@ -35,51 +23,36 @@ services:
         methods: ["PATCH"]
         strip_path: false
 
-      - name: alerts-read-one
-        paths: ["/v1/alerts/(?<id>[^/]+)/read$"]
+      - name: alerts
+        paths: ["/v1/alerts"]
+        methods: ["GET", "PATCH"]
+        strip_path: false
+
+      - name: alerts-by-id
+        paths: ["/v1/alerts/(?<id>[^/]+)$"]
         methods: ["PATCH"]
         strip_path: false
 
-      # Pickup routes
-      - name: pickup-routes-list
+      - name: pickup-routes
         paths: ["/v1/pickup-routes"]
         methods: ["GET"]
         strip_path: false
 
-      - name: pickup-routes-detail
-        paths: ["/v1/pickup-routes/(?<id>[^/]+)$"]
-        methods: ["GET"]
-        strip_path: false
-
-      # Analytics
       - name: analytics
         paths: ["/v1/analytics"]
         methods: ["GET"]
         strip_path: false
 
-      # Zones
-      - name: zones-list
+      - name: zones
         paths: ["/v1/zones"]
         methods: ["GET"]
         strip_path: false
 
-      - name: zones-detail
-        paths: ["/v1/zones/(?<id>[^/]+)$"]
-        methods: ["GET"]
-        strip_path: false
-
-      # Health
-      - name: health
-        paths: ["/health"]
-        methods: ["GET"]
-        strip_path: false
-
-    # Plugins applied to every route of this service
     plugins:
       - name: cors
         config:
           origins: ["*"]
-          methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]
+          methods: ["GET", "PATCH", "OPTIONS"]
           headers: ["Accept", "Content-Type", "Authorization", "X-Api-Key"]
           max_age: 3600
 
@@ -87,9 +60,8 @@ services:
         config:
           minute: 120
           policy: local
-          error_message: "Too many requests — slow down"
 
-      # Uncomment to require an API key on all routes:
+      # Uncomment to require an API key:
       # - name: key-auth
       #   config:
       #     key_names: ["X-Api-Key"]

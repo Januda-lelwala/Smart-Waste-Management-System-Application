@@ -1,32 +1,8 @@
-// Seed data — replace with DB queries when the database layer is ready
+// In-memory store — swap each array for DB queries when the database is ready.
+// Module-level state persists for the lifetime of the Next.js server process.
 
-export type BinStatus   = 'ok' | 'warning' | 'critical';
-export type AlertSev    = 'info' | 'warning' | 'critical';
-export type WasteType   = 'general' | 'recycling' | 'organic' | 'hazardous';
-export type RouteStatus = 'pending' | 'active' | 'complete';
+import type { Bin, Alert, Route, Zone, AnalyticsData } from '@/lib/types';
 
-export interface Bin {
-  id: string; label: string; zone: string;
-  lat: number; lng: number;
-  fill: number; capacity: number; type: WasteType;
-  status: BinStatus; battery: number; offline: boolean; lastPing: number;
-}
-
-export interface Alert {
-  id: string; sev: AlertSev; binId: string;
-  msg: string; ts: number; read: boolean;
-}
-
-export interface RouteStop { binId: string; order: number; eta: string }
-
-export interface PickupRoute {
-  id: string; label: string; driver: string; vehicle: string;
-  stops: RouteStop[]; distanceKm: number; durationMin: number; status: RouteStatus;
-}
-
-export interface Zone { id: string; name: string; color: string; binCount: number }
-
-// In-memory store (swap each array for a DB call)
 export const bins: Bin[] = [
   { id:'BIN-001', label:'Main St & 1st Ave',    zone:'z1', lat:14.5995, lng:120.9842, fill:82,  capacity:240, type:'general',   status:'critical', battery:78, offline:false, lastPing:Date.now()-12000  },
   { id:'BIN-002', label:'Harbour Rd North',      zone:'z2', lat:14.5921, lng:120.9763, fill:65,  capacity:120, type:'recycling', status:'warning',  battery:55, offline:false, lastPing:Date.now()-8000   },
@@ -49,7 +25,7 @@ export const alerts: Alert[] = [
   { id:'ALT-006', sev:'info',     binId:'BIN-003', msg:'Scheduled maintenance due in 2 days',         ts:Date.now()-5400000, read:true  },
 ];
 
-export const pickupRoutes: PickupRoute[] = [
+export const pickupRoutes: Route[] = [
   {
     id:'RT-042', label:'Morning Run — Zone 1 & 2',
     driver:'R. Santos', vehicle:'TRK-07',
@@ -71,3 +47,23 @@ export const zones: Zone[] = [
   { id:'z3', name:'East Suburbs',     color:'#A78BFA', binCount:10 },
   { id:'z4', name:'Industrial South', color:'#FBBF24', binCount:6  },
 ];
+
+export function getAnalytics(): AnalyticsData {
+  const zoneIds = [...new Set(bins.map(b => b.zone))];
+  return {
+    weeklyCollections: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(day => ({
+      day, count: Math.floor(Math.random() * 40) + 15,
+    })),
+    fillRateByZone: zoneIds.map(zId => {
+      const zBins = bins.filter(b => b.zone === zId);
+      return { zone: zId, avg: Math.round(zBins.reduce((s, b) => s + b.fill, 0) / zBins.length) };
+    }),
+    alertsByType: (['critical', 'warning', 'info'] as const).map(type => ({
+      type, count: alerts.filter(a => a.sev === type).length,
+    })),
+    totalCollectionsThisMonth: 487,
+    avgFillOnCollection: 76,
+    fuelSavedLitres: 312,
+    co2SavedKg: 748,
+  };
+}
