@@ -22,8 +22,10 @@ const VIEW_TITLES: Record<ViewId, string> = {
 
 const POLL_MS = 8000;
 
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3001';
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`/api/v1${path}`, init);
+  const res = await fetch(`${API_BASE}/v1${path}`, init);
   if (!res.ok) throw new Error(`${res.status} ${path}`);
   return res.json();
 }

@@ -1,7 +1,26 @@
 version: "3.9"
 
 services:
-  # ── Next.js app (UI + API routes) ─────────────────────────────────────────
+  # ── Fastify API backend ────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: garabadge-backend
+    restart: unless-stopped
+    environment:
+      PORT: 3001
+    expose:
+      - "3001"
+    networks:
+      - garabadge
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Next.js frontend (UI only) ─────────────────────────────────────────────
   nextjs:
     build:
       context: .
@@ -10,6 +29,8 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
+      # Browser-side: calls Kong, not the backend directly
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
     expose:
       - "3000"
     networks:
@@ -29,12 +50,16 @@ services:
       KONG_ADMIN_ERROR_LOG: /dev/stderr
       KONG_ADMIN_LISTEN: "0.0.0.0:8001"
     ports:
-      - "8000:8000"   # public proxy
-      - "8001:8001"   # admin API (restrict in production)
+      - "8000:8000"   # public API proxy
+      - "3000:3000"   # Next.js UI (proxied via Kong or direct)
+      - "8001:8001"   # Kong admin (restrict in production)
     volumes:
       - ./kong/kong.yml:/kong/kong.yml:ro
     depends_on:
-      - nextjs
+      backend:
+        condition: service_healthy
+      nextjs:
+        condition: service_started
     networks:
       - garabadge
     healthcheck:

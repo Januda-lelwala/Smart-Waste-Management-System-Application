@@ -1,13 +1,12 @@
 # Kong declarative config (DB-less mode)
-# Kong sits in front of Next.js and handles auth, rate-limiting, CORS.
-# Run: docker-compose up
+# Upstream: Fastify backend at port 3001
 
 _format_version: "3.0"
 _transform: true
 
 services:
-  - name: garabadge-nextjs
-    url: http://nextjs:3000
+  - name: garabadge-api
+    url: http://backend:3001
     connect_timeout: 5000
     read_timeout: 10000
     write_timeout: 10000
@@ -29,7 +28,7 @@ services:
         strip_path: false
 
       - name: alerts-by-id
-        paths: ["/v1/alerts/(?<id>[^/]+)$"]
+        paths: ["/v1/alerts/(?<id>[^/]+)/read$"]
         methods: ["PATCH"]
         strip_path: false
 
@@ -45,6 +44,11 @@ services:
 
       - name: zones
         paths: ["/v1/zones"]
+        methods: ["GET"]
+        strip_path: false
+
+      - name: health
+        paths: ["/health"]
         methods: ["GET"]
         strip_path: false
 

@@ -1,7 +1,30 @@
-// In-memory store — swap each array for DB queries when the database is ready.
-// Module-level state persists for the lifetime of the Next.js server process.
+// In-memory store — replace each array/function with DB calls when ready
 
-import type { Bin, Alert, Route, Zone, AnalyticsData } from '@/lib/types';
+export type BinStatus   = 'ok' | 'warning' | 'critical';
+export type AlertSev    = 'info' | 'warning' | 'critical';
+export type WasteType   = 'general' | 'recycling' | 'organic' | 'hazardous';
+export type RouteStatus = 'pending' | 'active' | 'complete';
+
+export interface Bin {
+  id: string; label: string; zone: string;
+  lat: number; lng: number;
+  fill: number; capacity: number; type: WasteType;
+  status: BinStatus; battery: number; offline: boolean; lastPing: number;
+}
+
+export interface Alert {
+  id: string; sev: AlertSev; binId: string;
+  msg: string; ts: number; read: boolean;
+}
+
+export interface RouteStop { binId: string; order: number; eta: string }
+
+export interface PickupRoute {
+  id: string; label: string; driver: string; vehicle: string;
+  stops: RouteStop[]; distanceKm: number; durationMin: number; status: RouteStatus;
+}
+
+export interface Zone { id: string; name: string; color: string; binCount: number }
 
 export const bins: Bin[] = [
   { id:'BIN-001', label:'Main St & 1st Ave',    zone:'z1', lat:14.5995, lng:120.9842, fill:82,  capacity:240, type:'general',   status:'critical', battery:78, offline:false, lastPing:Date.now()-12000  },
@@ -25,7 +48,7 @@ export const alerts: Alert[] = [
   { id:'ALT-006', sev:'info',     binId:'BIN-003', msg:'Scheduled maintenance due in 2 days',         ts:Date.now()-5400000, read:true  },
 ];
 
-export const pickupRoutes: Route[] = [
+export const pickupRoutes: PickupRoute[] = [
   {
     id:'RT-042', label:'Morning Run — Zone 1 & 2',
     driver:'R. Santos', vehicle:'TRK-07',
@@ -48,7 +71,7 @@ export const zones: Zone[] = [
   { id:'z4', name:'Industrial South', color:'#FBBF24', binCount:6  },
 ];
 
-export function getAnalytics(): AnalyticsData {
+export function getAnalytics() {
   const zoneIds = [...new Set(bins.map(b => b.zone))];
   return {
     weeklyCollections: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(day => ({
